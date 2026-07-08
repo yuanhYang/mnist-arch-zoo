@@ -21,3 +21,7 @@ Thumbs.db
 
 # PyTorch
 *.pth
+/.codebuddy/
+/data/
+/data/openml/
+/scripts/

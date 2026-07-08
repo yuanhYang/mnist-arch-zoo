@@ -41,6 +41,9 @@
 | 理解 CNN 的卷积/池化，ResNet 的残差连接 | `05_cnn_mnist.ipynb`、`06_resnet_mnist.ipynb` |
 | 体验 ViT（Transformer 做视觉）和 LSTM（序列建模） | `07_vit_mnist.ipynb`、`08_lstm_mnist.ipynb` |
 | 实践知识蒸馏：大模型教小模型 | `09_knowledge_distillation.ipynb` |
+| 掌握 Early Stopping + Checkpoint（每个项目都需要） | `10_early_stopping_checkpoint.ipynb` |
+| 理解数据增强如何对抗过拟合 | `11_data_augmentation.ipynb` |
+| 用 Grad-CAM 可视化模型"在看哪里"，理解 CNN 可解释性 | `05_cnn_mnist.ipynb` §7、`06_resnet_mnist.ipynb` §7 |
 
 ---
 
@@ -116,7 +119,13 @@ MLP_MNIST/
 │   ├── 06_resnet_mnist.ipynb           #  ResNet 残差网络
 │   ├── 07_vit_mnist.ipynb              #  ViT Vision Transformer
 │   ├── 08_lstm_mnist.ipynb             #  LSTM 序列建模
-│   └── 09_knowledge_distillation.ipynb  # 知识蒸馏
+│   ├── 09_knowledge_distillation.ipynb  # 知识蒸馏
+│   ├── 10_early_stopping_checkpoint.ipynb # Early Stopping + Checkpoint（必学实用技巧）
+│   └── 11_data_augmentation.ipynb          # 数据增强 — 对抗过拟合
+├── utils/
+│   ├── early_stopping.py                    # EarlyStopping 共享工具类
+│   ├── augmentation.py                      # 数据增强共享工具类
+│   └── gradcam.py                           # Grad-CAM 可视化工具类
 ├── requirements.txt
 └── README.md
 ```
@@ -164,6 +173,8 @@ jupyter notebook
 | 1 | `01_data_exploration.ipynb` | 下载 MNIST，看数据长什么样 | 数据加载、归一化、DataLoader |
 | 2 | `02_mlp_training.ipynb` | 定义并训练一个 MLP | **训练循环的完整流程** |
 | 2b | `02_mlp_training_numpy.ipynb` | 纯 NumPy 手写 MLP | **反向传播的内部原理** |
+| 2c | `10_early_stopping_checkpoint.ipynb` | 学会早停 + 断点保存 | **每个项目都需要的实用技巧** |
+| 2d | `11_data_augmentation.ipynb` | 数据增强防过拟合 | 旋转/平移/缩放/擦除，对照实验 |
 | 3 | `03_evaluation.ipynb` | 评估模型，看混淆矩阵 | 模型分析、错误诊断 |
 | 4 | `04_predict_custom.ipynb` | 自己写数字让模型识别 | 模型推理、多模型对比 + MODEL_CONFIG 注册表 |
 
@@ -185,6 +196,8 @@ jupyter notebook
 | 顺序 | Notebook | 前置条件 |
 |------|----------|----------|
 | 9 | `09_knowledge_distillation.ipynb` | 需要先训练 ResNet（06） |
+| 10 | `10_early_stopping_checkpoint.ipynb` | 无（独立运行，含完整 EarlyStopping 类实现） |
+| 11 | `11_data_augmentation.ipynb` | 无（独立运行，含 MLP+CNN 对照实验） |
 
 ### 预期运行效果
 
@@ -213,6 +226,10 @@ Epoch [ 10/100] Train Loss: 0.0512 | Train Acc: 0.9845 | Test Loss: 0.0647 | Tes
 │  Step 2: 02_mlp_training      ← 理解训练循环（核心！）            │
 │           ↓                                                     │
 │  Step 2b: 02_mlp_training_numpy ← 纯 NumPy 手写反向传播（理解原理） │
+│           ↓                                                     │
+│  Step 2c: 10_early_stopping    ← Early Stopping + Checkpoint    │
+│           ↓                                                     │
+│  Step 2d: 11_data_augmentation ← 数据增强对抗过拟合              │
 │           ↓                                                     │
 │  Step 3: 03_evaluation         ← 学会评估和分析模型               │
 │           ↓                                                     │
@@ -1041,6 +1058,126 @@ T=10: softmax → [0.05,  0.08,  0.50,  ...]   ← 更平滑，"暗知识"更明
 ```
 
 T 越高，教师输出的概率分布越"平滑"，类别间的相似性信息（暗知识）越容易被学生学到。
+
+---
+
+## 数据增强（Data Augmentation）
+
+### 核心思想
+
+不收集新数据，对现有图片做**随机微小变换**，让模型每次看到的"花样"不同：
+
+```
+原始数字"5"  →  旋转 8°  →  平移 2px  →  缩放 95%  →  随机擦除一角
+    ↓                  ↓             ↓             ↓              ↓
+  标准"5"           倾斜的"5"     位移的"5"     大小不同的"5"    残缺的"5"
+```
+
+模型被迫学到"本质特征"（笔画的走向、相对位置），而不是记住"第几行第几列的像素是什么"。
+
+### MNIST 安全增强
+
+| 增强方法 | 参数范围 | 效果 |
+|---------|---------|------|
+| `RandomRotation` | ±10° | 手写数字本来就有倾斜 |
+| `RandomAffine` (平移) | ±10% (约 ±3px) | 数字可能偏左/偏右 |
+| `RandomAffine` (缩放) | 90%~110% | 数字大小有差异 |
+| `RandomPerspective` | distortion≤0.15, p=0.3 | 拍照角度差异 |
+| `RandomErasing` (Cutout) | 擦除 2%~10% 区域 | 模拟遮挡/污渍 |
+
+> **MNIST 禁用翻转**：水平翻转 6 变成反写的 6（不是 9），改变语义。
+
+### 对照实验预期
+
+`11_data_augmentation.ipynb` 中做了 MLP 的对照实验：
+
+| 指标 | 无增强 | 有增强 |
+|------|--------|--------|
+| Train Accuracy | ~99.9% | ~99.2%（更难"背诵"） |
+| Test Accuracy | ~98.6% | ~98.9%（泛化更好） |
+| Train-Test Gap | ~1.3% | ~0.3%（过拟合显著减轻） |
+
+数据增强让模型训练更难（train acc 下降），但测试准确率更高（test acc 上升）——就是它有效的信号。
+
+### 代码示例
+
+```python
+from utils.augmentation import AugmentedDataset, get_mnist_transforms
+
+# 图像格式数据 (N, 1, 28, 28)
+X_img = torch.tensor(X_train).unsqueeze(1).float() / 255.0
+
+# 训练集：注入增强 transform
+train_set = AugmentedDataset(
+    X_img, y_train,
+    transform=get_mnist_transforms(augment=True),  # 旋转+平移+缩放+透视+擦除
+    flatten=False,
+)
+train_loader = DataLoader(train_set, batch_size=128, shuffle=True)
+
+# 测试集：不增强！（评估真实泛化能力）
+test_set = TensorDataset(X_test_img, y_test)
+test_loader = DataLoader(test_set, batch_size=128, shuffle=False)
+```
+
+
+
+## Grad-CAM 可视化：把黑箱变白箱
+
+### 核心思想
+
+**Grad-CAM**（Gradient-weighted Class Activation Mapping）能让 CNN「说」出它在看图片的哪个区域：
+
+```
+输入图片 → CNN 前向传播 → 取最后一层卷积特征图
+              ↓
+         反向传播梯度 → 全局平均池化 → 通道权重
+              ↓
+         加权组合特征图 → ReLU → 上采样 → 叠加到原图
+```
+
+热力图中 **红/黄区域 = 模型做分类决策时最关注的像素**，蓝色区域 = 几乎不关注。
+
+### 你能看到什么
+
+`05_cnn_mnist.ipynb` 和 `06_resnet_mnist.ipynb` 的 §7 章节包含：
+
+| 可视化 | 内容 |
+|--------|------|
+| **Grad-CAM 热力图** | 8 张测试图片的热力图网格，红=高关注，蓝=低关注 |
+| **特征图可视化** | 浅层/中层/深层卷积特征图，观察层级抽象过程 |
+| **解读分析** | 如何从热力图诊断模型行为 |
+
+### 典型发现
+
+| 观察 | 含义 |
+|------|------|
+| 热力区域集中在数字笔画上 | ✓ 模型学到了正确的结构性特征 |
+| 热力区域散落在背景上 | ✗ 模型可能学到了噪声/无关特征 |
+| 浅层特征图保留边缘纹理 | 低层检测器正常工作 |
+| 深层特征图变得抽象模糊 | 层级抽象正在发生 |
+
+### 代码示例
+
+```python
+from utils.gradcam import GradCAM, get_cnn_target_layer, plot_multi_gradcam
+
+# 加载已训练的 CNN
+model = SimpleCNN(in_channels=1, num_classes=10).to(device)
+model.load_state_dict(torch.load('models/cnn/best.pth', map_location=device))
+
+# 创建 GradCAM，目标层 = 最后一个卷积层
+gradcam = GradCAM(model, get_cnn_target_layer(model))
+
+# 对单张图片计算热力图
+img = X_test_img[0:1].to(device)
+heatmap, pred = gradcam(img, target_class=y_test[0])
+
+# 可视化（红=关注，蓝=不关注）
+plot_multi_gradcam(images, heatmaps, labels=true_labels, preds=preds, ncols=4)
+```
+
+> Grad-CAM 只适用于卷积网络。MLP/ViT/LSTM 需要用其他可解释性方法（如 Attention Map 可视化）。
 
 ---
 
