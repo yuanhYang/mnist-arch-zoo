@@ -25,3 +25,6 @@ Thumbs.db
 /data/
 /data/openml/
 /scripts/
+/.claude/
+/.codebuddy/
+
