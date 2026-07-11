@@ -43,7 +43,7 @@
 | 实践知识蒸馏：大模型教小模型 | `09_knowledge_distillation.ipynb` |
 | 掌握 Early Stopping + Checkpoint（每个项目都需要） | `10_early_stopping_checkpoint.ipynb` |
 | 理解数据增强 + GPU 批量优化如何对抗过拟合 | `11_data_augmentation.ipynb` |
-| 用 Grad-CAM 可视化模型"在看哪里"，理解 CNN 可解释性 | `05_cnn_mnist.ipynb` §7、`06_resnet_mnist.ipynb` §7 |
+| 用 Grad-CAM 可视化模型“在看哪里”，理解 CNN 可解释性 | `05_cnn_mnist.ipynb` 第 7 节、`06_resnet_mnist.ipynb` 第 7 节 |
 
 ---
 
